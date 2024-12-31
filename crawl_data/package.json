@@ -1,0 +1,17 @@
+{
+  "dependencies": {
+    "puppeteer": "^23.11.1",
+    "puppeteer-core": "^23.11.1"
+  },
+  "name": "crawl_data",
+  "version": "1.0.0",
+  "main": "index.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
