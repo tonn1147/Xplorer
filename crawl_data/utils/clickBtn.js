@@ -4,7 +4,7 @@
  * @param {object} page button's page
  * @returns true if clicked successfully, otherwise false
  */
-async function clickButtonForNavigating(button, page) {
+export async function clickButtonForNavigating(button, page) {
   if (button) {
     await button.click();
     await page.waitForNavigation({ waitUntil: "domcontentloaded" });
@@ -16,7 +16,7 @@ async function clickButtonForNavigating(button, page) {
   }
 }
 
-async function clickButtonAndWaitForSelectorVisible(
+export async function clickButtonAndWaitForSelectorVisible(
   button,
   page,
   selector = null
@@ -32,7 +32,7 @@ async function clickButtonAndWaitForSelectorVisible(
   }
 }
 
-async function clickButtonAndWaitForSelectorHidden(
+export async function clickButtonAndWaitForSelectorHidden(
   button,
   page,
   selector = null
@@ -48,7 +48,7 @@ async function clickButtonAndWaitForSelectorHidden(
   }
 }
 
-async function clickButtonAndWaitForNetwork(button, page, url = null) {
+export async function clickButtonAndWaitForNetwork(button, page, url = null) {
   if (button) {
     await button.click();
     if (selector) await page.waitForResponse(url);
