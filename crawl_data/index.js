@@ -34,7 +34,7 @@ async function puppeteerSetUpAndReturnAWebPageAndBrowser(
   //optional: set viewport as u need
   // await page.setViewport({ width: 1080, height: 1024 });
 
-  await page.goto(url, { waitUntil: "networkidle2" });
+  await page.goto(url, { waitUntil: "domcontentloaded" });
   return {
     page: page,
     browser: browser,
@@ -47,153 +47,99 @@ async function run() {
     false
   );
   try {
-    // Store responses
-    const responses = new Map();
-
     // Listen for network responses
-    page.on("response", async (response) => {
-      const url = response.url();
-      if (
-        url.startsWith(
-          "https://paikkatietokonsultit.com/geoserver/travel_vietnam"
-        )
-      ) {
-        try {
-          const data = await response.text();
-          responses.set(url, data);
-          console.log("Captured response from:", url);
-        } catch (error) {
-          console.log("Error capturing response:", error.message);
-        }
-      }
-    });
+    // page.on("response", async (response) => {
+    //   const url = response.url();
+    //   if (
+    //     url.startsWith(
+    //       "https://paikkatietokonsultit.com/geoserver/travel_vietnam"
+    //     )
+    //   ) {
+    //     try {
+    //       const data = await response.text();
+    //       responses.set(url, data);
+    //       console.log("Captured response from:", url);
+    //     } catch (error) {
+    //       console.log("Error capturing response:", error.message);
+    //     }
+    //   }
+    // });
 
-    await page.waitForSelector(".category-nav-select-all");
+    const result = {};
 
-    // Get all unique data-type values
-    const dataTypes = await page.evaluate(() => {
-      const buttons = document.querySelectorAll(".category-nav-select-all");
-      return [
-        ...new Set(
-          [...buttons].map((button) => button.getAttribute("data-type"))
-        ),
-      ];
-    });
+    try {
+      // Get all category divs
+      const categoryDivs = await page.$$(".category-marker");
+      console.log("get all categories");
+      for (const categoryDiv of categoryDivs) {
+        // Get category name from <p> tag
+        const categoryName = await categoryDiv.$eval(
+          "p",
+          (el) => el.textContent
+        );
+        result[categoryName] = {};
+        console.log(result)
+        // Get data-id from the div
+        const dataId = await categoryDiv.evaluate((el) =>
+          el.getAttribute("data-id")
+        );
 
-    console.log(`Found ${dataTypes.length} different data-types:`, dataTypes);
+        // Find corresponding ul using the data-id
+        const ulSelector = `#category-${dataId}-list`;
+        const ul = await page.$(ulSelector);
 
-    // Process each data-type sequentially
-    for (const dataType of dataTypes) {
-      console.log(`Processing data-type: ${dataType}`);
+        console.log(ul);
+        console.log(result);
+        if (ul) {
+          // Get all li elements in this ul
+          const liElements = await ul.$$("li");
 
-      try {
-        // Wait for and get the specific button
-        const selectAllButtonSelector = `.category-nav-select-all[data-type="${dataType}"]`;
-        await page.waitForSelector(selectAllButtonSelector, { visible: true });
-
-        // Use evaluate to click the button
-        await page.evaluate((selector) => {
-          const button = document.querySelector(selector);
-          if (button) {
-            button.click();
-          } else {
-            throw new Error(`Button not found for selector: ${selector}`);
-          }
-        }, selectAllButtonSelector);
-
-        console.log(`Clicked "select all" for data-type ${dataType}`);
-
-        // Wait for potential network request
-        try {
-          await page.waitForResponse(
-            (response) =>
-              response
-                .url()
-                .startsWith(
-                  "https://paikkatietokonsultit.com/geoserver/travel_vietnam"
-                ),
-            { timeout: 30000 }
-          );
-        } catch (timeoutError) {
-          console.log(
-            `No matching network request found for data-type ${dataType}`
-          );
-        }
-
-        // Get response content
-        const responses = await page.evaluate(async () => {
-          try {
-            const entries = performance
-              .getEntriesByType("resource")
-              .filter((entry) =>
-                entry.name.startsWith(
-                  "https://paikkatietokonsultit.com/geoserver/travel_vietnam"
-                )
-              );
-
-            if (entries.length === 0) return [];
-
-            const fetchResponses = await Promise.all(
-              entries.map(async (entry) => {
-                try {
-                  const response = await fetch(entry.name);
-                  const content = await response.text();
-                  return {
-                    url: entry.name,
-                    content: content,
-                  };
-                } catch (error) {
-                  return {
-                    url: entry.name,
-                    error: error.message,
-                  };
-                }
-              })
+          for (const li of liElements) {
+            // Get subcategory name from strong tag
+            const subcategoryName = await li.$eval(
+              "strong",
+              (el) => el.textContent
             );
-            return fetchResponses;
-          } catch (error) {
-            return { error: error.message };
-          }
-        });
+            result[categoryName][subcategoryName] = [];
 
-        // Log responses for current data-type
-        if (responses.length > 0) {
-          console.log(`Responses for data-type ${dataType}:`);
-          responses.forEach((response) => {
-            console.log(`URL: ${response.url}`);
-            if (response.error) {
-              console.log("Error:", response.error);
-            } else {
-              console.log("Content:", response.content);
-            }
-            console.log("-------------------");
-          });
+            // Click the li element
+            await li.evaluate((e) => e.click());
+
+            // Wait for network request and response
+            const response = await page.waitForResponse((response) =>
+              response.url().includes(dataFileName)
+            );
+
+            // Get the response text and parse it
+            const responseText = await response.text();
+            // Remove 'getJson4001(' from start and ')' from end
+            const jsonStr = responseText
+              .replace(/^getJson\d+\(/, "")
+              .replace(/\)$/, "");
+            const data = JSON.parse(jsonStr);
+
+            // Extract and transform the features
+            const transformedFeatures = data.features.map((feature) => ({
+              geometry: feature.geometry,
+              description: feature.properties.description_en,
+              name: feature.properties.name_en,
+              imageUrl: feature.image_url,
+            }));
+
+            // Add transformed features to result
+            result[categoryName][subcategoryName] = transformedFeatures;
+
+            // Find and click the close button
+            await page.$eval("button.ui-icon-close", (e) => e.click());
+
+            // Wait for any animations or state changes to complete
+            await page.waitForTimeout(1000);
+          }
         }
-
-        // Click the corresponding "select none" button using evaluate
-        const selectNoneButtonSelector = `.category-nav-select-none[data-type="${dataType}"]`;
-        await page.waitForSelector(selectNoneButtonSelector, { visible: true });
-        await page.evaluate((selector) => {
-          const button = document.querySelector(selector);
-          if (button) {
-            button.click();
-          } else {
-            throw new Error(`Button not found for selector: ${selector}`);
-          }
-        }, selectNoneButtonSelector);
-
-        console.log(`Clicked "select none" for data-type ${dataType}`);
-
-      } catch (error) {
-        console.error(`Error processing data-type ${dataType}:`, error);
-        // Take a screenshot when error occurs
-        await page.screenshot({ path: `error-data-type-${dataType}.png` });
-        continue;
       }
+    } catch (err) {
+      throw new Error(err);
     }
-
-    console.log("All data-types processed successfully");
-
     await new Promise(() => setTimeout(() => console.log("waiting"), 10000));
   } catch (err) {
     console.log(err.message);
