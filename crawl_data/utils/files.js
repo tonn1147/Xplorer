@@ -1,3 +1,5 @@
+const fs = require("fs");
+
 async function saveToTxt(dest, content) {
   try {
     await fs.promises.writeFile(dest, content.join("\n"), "utf8");
@@ -18,3 +20,8 @@ async function saveToCsv(dest, content) {
     console.error("Error saving files:", error);
   }
 }
+
+module.exports = {
+  saveToCsv,
+  saveToTxt,
+};

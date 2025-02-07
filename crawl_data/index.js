@@ -2,6 +2,7 @@ const puppeteer = require("puppeteer");
 const { timer } = require("./utils/timer");
 const fs = require("fs");
 const { clickButtonAndWaitForNetwork } = require("./utils/clickBtn");
+const { saveToCsv, saveToTxt } = require("./utils/files");
 
 const searchResultTabPrefix = "tabs-content-";
 const zoomToVietnamSelector = ".leaflet-control-layers-toggle";
@@ -22,7 +23,7 @@ async function puppeteerSetUpAndReturnAWebPageAndBrowser(
 ) {
   const browser = await puppeteer.launch({
     headless: headless,
-    waitUntil: "domcontentloaded",
+    waitUntil: "load",
     slowMo: slowMo,
     args: [
       "--start-maximized", // you can also use '--start-fullscreen'
@@ -34,7 +35,7 @@ async function puppeteerSetUpAndReturnAWebPageAndBrowser(
   //optional: set viewport as u need
   // await page.setViewport({ width: 1080, height: 1024 });
 
-  await page.goto(url, { waitUntil: "domcontentloaded" });
+  await page.goto(url, { waitUntil: "load" });
   return {
     page: page,
     browser: browser,
@@ -73,12 +74,13 @@ async function run() {
       console.log("get all categories");
       for (const categoryDiv of categoryDivs) {
         // Get category name from <p> tag
+        console.log("start looping");
         const categoryName = await categoryDiv.$eval(
           "p",
           (el) => el.textContent
         );
         result[categoryName] = {};
-        console.log(result)
+        console.log(result);
         // Get data-id from the div
         const dataId = await categoryDiv.evaluate((el) =>
           el.getAttribute("data-id")
@@ -89,13 +91,14 @@ async function run() {
         const ul = await page.$(ulSelector);
 
         console.log(ul);
-        console.log(result);
         if (ul) {
           // Get all li elements in this ul
+          console.log("Get all li elements in this ul");
           const liElements = await ul.$$("li");
-
+          console.log(liElements);
           for (const li of liElements) {
             // Get subcategory name from strong tag
+            console.log("Get subcategory name from strong tag");
             const subcategoryName = await li.$eval(
               "strong",
               (el) => el.textContent
@@ -103,21 +106,24 @@ async function run() {
             result[categoryName][subcategoryName] = [];
 
             // Click the li element
-            await li.evaluate((e) => e.click());
-
+            await li.evaluate((e) => {
+              console.log("click button");
+              e.click();
+            });
+            console.log("Wait for network request and response");
             // Wait for network request and response
-            const response = await page.waitForResponse((response) =>
-              response.url().includes(dataFileName)
+            const response = await page.waitForResponse(async (response) =>
+              response.url().startsWith(dataFileName)
             );
-
             // Get the response text and parse it
+            console.log("Get the response text and parse it");
             const responseText = await response.text();
             // Remove 'getJson4001(' from start and ')' from end
             const jsonStr = responseText
               .replace(/^getJson\d+\(/, "")
               .replace(/\)$/, "");
             const data = JSON.parse(jsonStr);
-
+            console.log(`data: ${JSON.stringify(data)}`);
             // Extract and transform the features
             const transformedFeatures = data.features.map((feature) => ({
               geometry: feature.geometry,
@@ -130,17 +136,20 @@ async function run() {
             result[categoryName][subcategoryName] = transformedFeatures;
 
             // Find and click the close button
-            await page.$eval("button.ui-icon-close", (e) => e.click());
-
-            // Wait for any animations or state changes to complete
-            await page.waitForTimeout(1000);
+            await page.$eval("button.ui-icon-close", (e) => {
+              console.log("click close button");
+              e.click();
+            });
+            console.log("show result");
+            console.log(JSON.stringify(result));
           }
         }
       }
+      await saveToTxt("destinations.csv", result);
+      console.log(JSON.stringify(result));
     } catch (err) {
       throw new Error(err);
     }
-    await new Promise(() => setTimeout(() => console.log("waiting"), 10000));
   } catch (err) {
     console.log(err.message);
   } finally {
