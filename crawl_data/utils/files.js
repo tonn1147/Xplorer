@@ -2,7 +2,7 @@ const fs = require("fs");
 
 async function saveToTxt(dest, content) {
   try {
-    await fs.promises.writeFile(dest, content.join("\n"), "utf8");
+    await fs.promises.writeFile(dest, content, "utf8");
 
     console.log("Data successfully saved to files");
   } catch (error) {

@@ -123,13 +123,12 @@ async function run() {
               .replace(/^getJson\d+\(/, "")
               .replace(/\)$/, "");
             const data = JSON.parse(jsonStr);
-            console.log(`data: ${JSON.stringify(data)}`);
             // Extract and transform the features
             const transformedFeatures = data.features.map((feature) => ({
               geometry: feature.geometry,
               description: feature.properties.description_en,
               name: feature.properties.name_en,
-              imageUrl: feature.image_url,
+              imageUrl: feature.properties.img_url,
             }));
 
             // Add transformed features to result
@@ -140,13 +139,11 @@ async function run() {
               console.log("click close button");
               e.click();
             });
-            console.log("show result");
-            console.log(JSON.stringify(result));
+            console.log("process result successfully");
           }
         }
       }
-      await saveToTxt("destinations.csv", result);
-      console.log(JSON.stringify(result));
+      await saveToTxt("destinations.txt", JSON.stringify(result));
     } catch (err) {
       throw new Error(err);
     }

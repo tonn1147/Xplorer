@@ -5,10 +5,12 @@ import React from "react";
 import Navbar from "./components/navBar/NavBar";
 
 function App() {
+  const [waypoints, setWaypoints] = useState([]);
+
   return (
     <>
-        <Navbar></Navbar>
-        <OpenStreetMap />
+        <Navbar setWaypoints={setWaypoints}></Navbar>
+        <OpenStreetMap waypoints={waypoints} setWaypoints={setWaypoints} />
     </>
   );
 }
